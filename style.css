@@ -1,0 +1,66 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    background: #000;
+    overflow: hidden;
+    font-family: 'Courier New', monospace;
+}
+
+#loading {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #8b0000;
+    font-size: 24px;
+    z-index: 100;
+    letter-spacing: 4px;
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 1; }
+}
+
+#crosshair {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: rgba(255, 255, 255, 0.25);
+    font-size: 24px;
+    pointer-events: none;
+    z-index: 10;
+}
+
+#message {
+    position: fixed;
+    bottom: 20%;
+    left: 50%;
+    transform: translateX(-50%);
+    color: #ff2222;
+    font-size: 32px;
+    font-weight: bold;
+    text-shadow: 0 0 20px #ff0000, 0 0 40px #ff0000;
+    opacity: 0;
+    transition: opacity 0.3s;
+    z-index: 10;
+    pointer-events: none;
+    letter-spacing: 6px;
+}
+
+#instruction {
+    position: fixed;
+    bottom: 40px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 14px;
+    z-index: 10;
+    pointer-events: none;
+}
