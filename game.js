@@ -1,10 +1,19 @@
 import * as THREE from 'three';
 
+// ==================== НАСТРОЙКИ (по умолчанию) ====================
+let settings = {
+    sensitivity: 1.0,
+    fov: 75,
+    brightness: 1.0,
+    flashlightPower: 12
+};
+
 // ==================== ПЕРЕМЕННЫЕ ====================
 const keys = {};
 let mouseX = 0;
 let mouseY = 0;
 let isPointerLocked = false;
+let settingsOpen = false;
 let jumpscareTriggered = false;
 let playerInDangerZone = false;
 let dangerTimer = 0;
@@ -14,10 +23,10 @@ let lastTime = 0;
 // ==================== СЦЕНА ====================
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x000000);
-scene.fog = new THREE.FogExp2(0x000000, 0.02);
+scene.fog = new THREE.FogExp2(0x000000, 0.012);
 
 // ==================== КАМЕРА ====================
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100);
+const camera = new THREE.PerspectiveCamera(settings.fov, window.innerWidth / window.innerHeight, 0.1, 100);
 camera.position.set(0, 1.6, 5);
 
 // ==================== РЕНДЕРЕР ====================
@@ -26,24 +35,41 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 0.5;
+renderer.toneMappingExposure = settings.brightness;
 document.body.appendChild(renderer.domElement);
 
 // ==================== СВЕТ ====================
-const ambientLight = new THREE.AmbientLight(0x111122, 0.25);
+const ambientLight = new THREE.AmbientLight(0x222233, 0.5);
 scene.add(ambientLight);
 
-const flashlight = new THREE.SpotLight(0xffeebb, 12, 18, Math.PI / 8, 0.3, 0.4);
+// Фонарик игрока
+const flashlight = new THREE.SpotLight(0xffeebb, settings.flashlightPower, 18, Math.PI / 8, 0.3, 0.4);
 flashlight.position.set(0, 0, 0);
 flashlight.castShadow = true;
 flashlight.shadow.mapSize.width = 1024;
 flashlight.shadow.mapSize.height = 1024;
 camera.add(flashlight);
 
+// Второй фонарик — более широкий, для лучшей видимости
+const wideFlashlight = new THREE.SpotLight(0xffeedd, settings.flashlightPower * 0.4, 14, Math.PI / 5, 0.5, 0.6);
+wideFlashlight.position.set(0, 0, 0);
+camera.add(wideFlashlight);
+
+// Красный свет в конце коридора
 const redLight = new THREE.PointLight(0xff0000, 2, 8);
 redLight.position.set(0, 1, -12);
 redLight.castShadow = true;
 scene.add(redLight);
+
+// Дополнительные тусклые лампы на стенах (чтобы не было кромешной тьмы)
+function addWallLight(x, y, z) {
+    const light = new THREE.PointLight(0x332211, 1.5, 6);
+    light.position.set(x, y, z);
+    scene.add(light);
+}
+addWallLight(-2.8, 3, -4);
+addWallLight(2.8, 3, 0);
+addWallLight(-2.8, 3, 6);
 
 // ==================== ТЕКСТУРЫ (генерируем кодом) ====================
 function createTexture(baseColor, noiseAmount = 0.06) {
@@ -68,9 +94,9 @@ function createTexture(baseColor, noiseAmount = 0.06) {
 }
 
 // ==================== ПОЛ ====================
-const floorTexture = createTexture('#1a1818', 0.08);
+const floorTexture = createTexture('#2a2520', 0.06);
 const floorGeo = new THREE.PlaneGeometry(20, 30);
-const floorMat = new THREE.MeshStandardMaterial({ map: floorTexture, roughness: 0.9, metalness: 0.1 });
+const floorMat = new THREE.MeshStandardMaterial({ map: floorTexture, roughness: 0.85, metalness: 0.1 });
 const floor = new THREE.Mesh(floorGeo, floorMat);
 floor.rotation.x = -Math.PI / 2;
 floor.receiveShadow = true;
@@ -78,9 +104,9 @@ scene.add(floor);
 
 // ==================== СТЕНЫ ====================
 function createWall(x, y, z, rotY, w = 12, h = 4) {
-    const tex = createTexture('#1a1212', 0.07);
+    const tex = createTexture('#2a1f1a', 0.05);
     const geo = new THREE.PlaneGeometry(w, h);
-    const mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.85, metalness: 0.05 });
+    const mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.8, metalness: 0.05 });
     const wall = new THREE.Mesh(geo, mat);
     wall.position.set(x, y, z);
     wall.rotation.y = rotY;
@@ -91,12 +117,12 @@ function createWall(x, y, z, rotY, w = 12, h = 4) {
 }
 
 // Основной коридор
-createWall(-3, 2, -2, 0);           // Левая передняя
-createWall(3, 2, -2, Math.PI);      // Правая передняя
-createWall(-3, 2, 8, 0);           // Левая задняя
-createWall(3, 2, 8, Math.PI);      // Правая задняя
-createWall(0, 2, -8, Math.PI / 2); // Дальняя
-createWall(0, 2, 12, -Math.PI / 2); // Ближняя
+createWall(-3, 2, -2, 0);
+createWall(3, 2, -2, Math.PI);
+createWall(-3, 2, 8, 0);
+createWall(3, 2, 8, Math.PI);
+createWall(0, 2, -8, Math.PI / 2);
+createWall(0, 2, 12, -Math.PI / 2);
 
 // Поперечная стена с проходом
 createWall(-1.5, 2, 3, Math.PI / 2, 3, 4);
@@ -104,7 +130,7 @@ createWall(1.5, 2, 3, Math.PI / 2, 3, 4);
 
 // ==================== ПОТОЛОК ====================
 const ceilingGeo = new THREE.PlaneGeometry(20, 30);
-const ceilingMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.95 });
+const ceilingMat = new THREE.MeshStandardMaterial({ color: 0x2a2520, roughness: 0.9 });
 const ceiling = new THREE.Mesh(ceilingGeo, ceilingMat);
 ceiling.rotation.x = Math.PI / 2;
 ceiling.position.y = 4;
@@ -113,26 +139,26 @@ scene.add(ceiling);
 
 // ==================== БОЧКА С ОГНЁМ ====================
 const barrelGeo = new THREE.CylinderGeometry(0.4, 0.4, 1, 16);
-const barrelMat = new THREE.MeshStandardMaterial({ color: 0x3d1a1a, roughness: 0.5, metalness: 0.7 });
+const barrelMat = new THREE.MeshStandardMaterial({ color: 0x4a3020, roughness: 0.5, metalness: 0.7 });
 const barrel = new THREE.Mesh(barrelGeo, barrelMat);
 barrel.position.set(2, 0.5, -4);
 barrel.castShadow = true;
 barrel.receiveShadow = true;
 scene.add(barrel);
 
-const fireLight = new THREE.PointLight(0xff5500, 4, 7);
+const fireLight = new THREE.PointLight(0xff6600, 5, 8);
 fireLight.position.set(2, 1.1, -4);
 scene.add(fireLight);
 
 // ==================== СТУЛ ====================
 const chairGroup = new THREE.Group();
 const seatGeo = new THREE.BoxGeometry(0.5, 0.05, 0.5);
-const seatMat = new THREE.MeshStandardMaterial({ color: 0x3d2817, roughness: 0.7 });
+const seatMat = new THREE.MeshStandardMaterial({ color: 0x4a3520, roughness: 0.7 });
 chairGroup.add(new THREE.Mesh(seatGeo, seatMat));
 
 for (let i = 0; i < 4; i++) {
     const legGeo = new THREE.CylinderGeometry(0.03, 0.03, 0.8);
-    const leg = new THREE.Mesh(legGeo, new THREE.MeshStandardMaterial({ color: 0x1a1a1a, metalness: 0.5 }));
+    const leg = new THREE.Mesh(legGeo, new THREE.MeshStandardMaterial({ color: 0x2a2a2a, metalness: 0.5 }));
     leg.position.set((i % 2 === 0 ? -0.2 : 0.2), -0.4, (i < 2 ? -0.2 : 0.2));
     leg.castShadow = true;
     chairGroup.add(leg);
@@ -144,7 +170,7 @@ scene.add(chairGroup);
 
 // ==================== КРОВАВЫЕ СЛЕДЫ ====================
 const bloodGeo = new THREE.PlaneGeometry(0.25, 0.4);
-const bloodMat = new THREE.MeshBasicMaterial({ color: 0x1a0000, transparent: true, opacity: 0.5, depthWrite: false });
+const bloodMat = new THREE.MeshBasicMaterial({ color: 0x3d0000, transparent: true, opacity: 0.6, depthWrite: false });
 for (let i = 0; i < 20; i++) {
     const blood = new THREE.Mesh(bloodGeo, bloodMat);
     blood.rotation.x = -Math.PI / 2;
@@ -156,7 +182,7 @@ for (let i = 0; i < 20; i++) {
 // ==================== ТРУБЫ НА СТЕНАХ ====================
 function createPipe(x, y, z, rot) {
     const geo = new THREE.CylinderGeometry(0.06, 0.06, 8, 8);
-    const mat = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, metalness: 0.8, roughness: 0.4 });
+    const mat = new THREE.MeshStandardMaterial({ color: 0x3a3a3a, metalness: 0.8, roughness: 0.4 });
     const pipe = new THREE.Mesh(geo, mat);
     pipe.position.set(x, y, z);
     pipe.rotation.z = rot;
@@ -205,7 +231,6 @@ function triggerJumpscare() {
     if (jumpscareTriggered) return;
     jumpscareTriggered = true;
 
-    // Сущность перед игроком
     const dir = new THREE.Vector3(0, 0, -1);
     dir.applyQuaternion(camera.quaternion);
     entity.position.copy(camera.position).add(dir.multiplyScalar(1.5));
@@ -213,17 +238,14 @@ function triggerJumpscare() {
     entity.visible = true;
     entity.lookAt(camera.position);
 
-    // Красная вспышка
     const flash = new THREE.PointLight(0xff0000, 25, 18);
     flash.position.copy(camera.position);
     scene.add(flash);
 
-    // Сообщение
     const msg = document.getElementById('message');
     msg.textContent = 'НЕ ОБОРАЧИВАЙСЯ';
     msg.style.opacity = '1';
 
-    // Тряска
     let shake = 0.6;
     const origPos = camera.position.clone();
     const shakeInterval = setInterval(() => {
@@ -244,32 +266,94 @@ function triggerJumpscare() {
     }, 2500);
 }
 
+// ==================== МЕНЮ НАСТРОЕК ====================
+const settingsMenu = document.getElementById('settingsMenu');
+const sensSlider = document.getElementById('sensitivity');
+const sensValue = document.getElementById('sensValue');
+const fovSlider = document.getElementById('fov');
+const fovValue = document.getElementById('fovValue');
+const brightnessSlider = document.getElementById('brightness');
+const brightnessValue = document.getElementById('brightnessValue');
+const flashlightSlider = document.getElementById('flashlightPower');
+const flashlightValue = document.getElementById('flashlightValue');
+
+function openSettings() {
+    settingsOpen = true;
+    settingsMenu.style.display = 'block';
+    if (isPointerLocked) {
+        document.exitPointerLock();
+    }
+}
+
+function closeSettings() {
+    settingsOpen = false;
+    settingsMenu.style.display = 'none';
+}
+
+function applySettings() {
+    settings.sensitivity = parseFloat(sensSlider.value);
+    settings.fov = parseInt(fovSlider.value);
+    settings.brightness = parseFloat(brightnessSlider.value);
+    settings.flashlightPower = parseInt(flashlightSlider.value);
+
+    sensValue.textContent = settings.sensitivity.toFixed(1);
+    fovValue.textContent = settings.fov;
+    brightnessValue.textContent = settings.brightness.toFixed(1);
+    flashlightValue.textContent = settings.flashlightPower;
+
+    camera.fov = settings.fov;
+    camera.updateProjectionMatrix();
+    renderer.toneMappingExposure = settings.brightness;
+    flashlight.intensity = settings.flashlightPower;
+    wideFlashlight.intensity = settings.flashlightPower * 0.4;
+}
+
+// События слайдеров
+sensSlider.addEventListener('input', applySettings);
+fovSlider.addEventListener('input', applySettings);
+brightnessSlider.addEventListener('input', applySettings);
+flashlightSlider.addEventListener('input', applySettings);
+
+document.getElementById('closeSettings').addEventListener('click', closeSettings);
+
 // ==================== УПРАВЛЕНИЕ ====================
 renderer.domElement.addEventListener('click', () => {
-    renderer.domElement.requestPointerLock();
-    document.getElementById('instruction').style.display = 'none';
+    if (!settingsOpen) {
+        renderer.domElement.requestPointerLock();
+        document.getElementById('instruction').style.display = 'none';
+    }
 });
 
 document.addEventListener('pointerlockchange', () => {
     isPointerLocked = document.pointerLockElement === renderer.domElement;
     if (isPointerLocked) {
         document.getElementById('instruction').style.display = 'none';
-    } else {
+    } else if (!settingsOpen) {
         document.getElementById('instruction').style.display = 'block';
     }
 });
 
 document.addEventListener('mousemove', (e) => {
-    if (isPointerLocked) {
-        mouseX += e.movementX * 0.002;
-        mouseY -= e.movementY * 0.002;
+    if (isPointerLocked && !settingsOpen) {
+        mouseX += e.movementX * 0.002 * settings.sensitivity;
+        mouseY -= e.movementY * 0.002 * settings.sensitivity;
         mouseY = Math.max(-Math.PI / 3, Math.min(Math.PI / 3, mouseY));
     }
 });
 
 window.addEventListener('keydown', (e) => {
     keys[e.key.toLowerCase()] = true;
+
+    // ESC — меню настроек
+    if (e.key === 'Escape') {
+        if (settingsOpen) {
+            closeSettings();
+        } else {
+            openSettings();
+        }
+    }
 });
+
 window.addEventListener('keyup', (e) => {
     keys[e.key.toLowerCase()] = false;
 });
@@ -281,31 +365,44 @@ function animate(currentTime) {
     const dt = Math.min((currentTime - lastTime) / 1000, 0.1);
     lastTime = currentTime;
 
-    if (!isPointerLocked) {
+    if (!isPointerLocked || settingsOpen) {
         renderer.render(scene, camera);
         return;
     }
 
-    // Вращение камеры
+    // Вращение камеры (ИСПРАВЛЕНО: инвертирован X)
     camera.rotation.order = 'YXZ';
-    camera.rotation.y += mouseX * 5 * dt;
+    camera.rotation.y -= mouseX * 5 * dt;   // БЫЛО +, СТАЛО -
     camera.rotation.x += mouseY * 5 * dt;
     mouseX *= 0.9;
     mouseY *= 0.9;
 
     // Движение
     const speed = 4.5;
-    const dir = new THREE.Vector3();
-    if (keys['w']) dir.z -= 1;
-    if (keys['s']) dir.z += 1;
-    if (keys['a']) dir.x -= 1;
-    if (keys['d']) dir.x += 1;
+    const moveDir = new THREE.Vector3();
+    if (keys['w']) moveDir.z -= 1;
+    if (keys['s']) moveDir.z += 1;
+    if (keys['a']) moveDir.x -= 1;
+    if (keys['d']) moveDir.x += 1;
 
-    if (dir.length() > 0) {
-        dir.normalize();
-        dir.applyQuaternion(camera.quaternion);
-        dir.y = 0;
-        camera.position.add(dir.multiplyScalar(speed * dt));
+    if (moveDir.length() > 0) {
+        moveDir.normalize();
+        // ИСПРАВЛЕНО: направление движения относительно камеры
+        const forward = new THREE.Vector3(0, 0, -1);
+        forward.applyQuaternion(camera.quaternion);
+        forward.y = 0;
+        forward.normalize();
+
+        const right = new THREE.Vector3(1, 0, 0);
+        right.applyQuaternion(camera.quaternion);
+        right.y = 0;
+        right.normalize();
+
+        const movement = new THREE.Vector3();
+        movement.add(forward.multiplyScalar(-moveDir.z));
+        movement.add(right.multiplyScalar(moveDir.x));
+        movement.normalize();
+        camera.position.add(movement.multiplyScalar(speed * dt));
     }
 
     // Границы
@@ -313,7 +410,7 @@ function animate(currentTime) {
     camera.position.z = Math.max(-6, Math.min(10, camera.position.z));
 
     // Огонь мерцает
-    fireLight.intensity = 2.5 + Math.sin(currentTime * 0.015) * 1.5 + Math.random() * 1.5;
+    fireLight.intensity = 3 + Math.sin(currentTime * 0.015) * 2 + Math.random() * 2;
 
     // Логика опасной зоны
     const inDanger = camera.position.z < -4;
@@ -368,4 +465,5 @@ window.addEventListener('resize', () => {
 
 // ==================== ЗАПУСК ====================
 document.getElementById('loading').style.display = 'none';
+applySettings(); // Применить дефолтные настройки
 animate(0);
